@@ -33,6 +33,9 @@
     </video>
 </body>
 <script>
-    document.getElementById('vid').play();
+    let vid = document.getElementById('vid')
+    document.body.addEventListener("mousemove", function () {
+        vid.play()
+    })
 </script>
 </html>
