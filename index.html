@@ -3,39 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random WebGL Blobs with PNG Texture</title>
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-            overflow: hidden;
-        }
-        video {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            min-width: 100%;
-            min-height: 100%;
-            width: auto;
-            height: auto;
-            z-index: -100;
-            transform: translateX(-50%) translateY(-50%);
-            background-size: cover;
-        }
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
     </style>
-    <title>Autoplay Video</title>
 </head>
 <body>
-    <video id="vid" loop autoplay muted>
-        <source src="video.mp4" type="video/mp4">
-        Your browser does not support the video tag.
-    </video>
-</body>
+<script src="https://threejs.org/build/three.js"></script>
 <script>
-    let vid = document.getElementById('vid')
-    document.body.addEventListener("mousemove", function () {
-        vid.muted = false;
-    })
+    // Scene, Camera, Renderer setup
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    var renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    var NUM_POINTS = 1000;
+
+    // Random blobby shape
+    var geometry = new THREE.BufferGeometry();
+
+    var vertices = [];
+    var sizes = new Float32Array(NUM_POINTS); // Add sizes attribute
+    for (var i = 0; i < NUM_POINTS; i++) {
+        var x = (Math.random() - 0.5) * 20;
+        var y = (Math.random() - 0.5) * 20;
+        var z = (Math.random() - 0.5) * 20;
+        vertices.push(x, y, z);
+        sizes[i] = 1.0; // default size
+    }
+
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1)); // Add size attribute to geometry
+
+    // Load the PNG texture
+    var textureLoader = new THREE.TextureLoader();
+
+    // Replace PNG texture loading with VideoTexture
+    var video = document.createElement('video');
+    video.src = 'img.mp4'; // Your .webp video URL
+    video.loop = true;      // Video will loop
+    video.muted = true;     // Mute the video so it auto-plays on most browsers
+    video.play();           // Start playing the video
+
+    var particleTexture = new THREE.VideoTexture(video);
+    particleTexture.flipY = false; // Flip the texture vertically
+
+    // Modified ShaderMaterial
+    var material = new THREE.ShaderMaterial({
+        uniforms: {
+            pointTexture: { value: particleTexture }
+        },
+        vertexShader: `
+            attribute float size;
+            uniform float pointSize;
+            void main() {
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            uniform sampler2D pointTexture;
+            void main() {
+                gl_FragColor = texture2D(pointTexture, gl_PointCoord);
+            }
+        `,
+        transparent: false,
+        depthTest: true
+    });
+
+    var particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+
+    camera.position.z = 25;
+
+    let lastHighlighted = -1;
+    let highlightStart = 0;
+    const highlightDuration = 3000; // 3 seconds in ms
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        let now = Date.now();
+
+        if (now - highlightStart > highlightDuration) {
+            if (lastHighlighted !== -1) {
+                sizes[lastHighlighted] = 1.0;
+            }
+
+            lastHighlighted = Math.floor(Math.random() * NUM_POINTS);
+            sizes[lastHighlighted] = 40.0; // Increase size
+            highlightStart = now;
+
+            geometry.attributes.size.needsUpdate = true;
+        }
+
+        particles.rotation.x += 0.005;
+        particles.rotation.y += 0.005;
+        renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', function() {
+        var width = window.innerWidth;
+        var height = window.innerHeight;
+        renderer.setSize(width, height);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+    });
+
 </script>
+</body>
 </html>
